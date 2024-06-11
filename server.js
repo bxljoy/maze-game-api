@@ -13,85 +13,75 @@ const generateToken = () => {
   return crypto.randomBytes(16).toString("hex");
 };
 
-// Define initial rooms in the new format with interconnected paths
-const initialRooms = {
-  "572c5e10-564a-43e6-a489-e12dfe94d57c": {
-    id: "572c5e10-564a-43e6-a489-e12dfe94d57c",
-    floor: "1",
-    paths: [
-      {
-        requiredItem: null,
-        direction: "North",
-        destination: "0af61e6b-5ba4-4992-a6ad-bd209818190e",
-      },
-    ],
-    effect: "Start",
-  },
-  "0af61e6b-5ba4-4992-a6ad-bd209818190e": {
-    id: "0af61e6b-5ba4-4992-a6ad-bd209818190e",
-    floor: "1",
-    paths: [
-      {
-        requiredItem: null,
-        direction: "South",
-        destination: "572c5e10-564a-43e6-a489-e12dfe94d57c",
-      },
-      {
-        requiredItem: null,
-        direction: "North",
-        destination: "a9d03b2c-5f92-49e0-ba9b-eed09d56f94e",
-      },
-      {
-        requiredItem: null,
-        direction: "East",
-        destination: "12ef2e75-b9a9-4f95-8769-144d814638ab",
-      },
-    ],
-    effect: null,
-  },
-  "a9d03b2c-5f92-49e0-ba9b-eed09d56f94e": {
-    id: "a9d03b2c-5f92-49e0-ba9b-eed09d56f94e",
-    floor: "1",
-    paths: [
-      {
-        requiredItem: null,
-        direction: "South",
-        destination: "0af61e6b-5ba4-4992-a6ad-bd209818190e",
-      },
-    ],
-    effect: "Victory",
-  },
-  "12ef2e75-b9a9-4f95-8769-144d814638ab": {
-    id: "12ef2e75-b9a9-4f95-8769-144d814638ab",
-    floor: "1",
-    paths: [
-      {
-        requiredItem: null,
-        direction: "West",
-        destination: "0af61e6b-5ba4-4992-a6ad-bd209818190e",
-      },
-    ],
-    effect: null,
-  },
+// Helper function to generate a random room ID
+const generateRoomId = () => {
+  return crypto.randomBytes(8).toString("hex"); // Generates a 16-character hex string
+};
+
+// Function to generate a linear, solvable maze without loops
+const generateInitialRooms = () => {
+  const roomCount = Math.floor(Math.random() * 7) + 4; // Generates a number from 4 to 10
+  const roomIds = Array.from({ length: roomCount }, generateRoomId);
+  const directions = ["North", "East", "South", "West"]; // Basic cardinal directions
+  let rooms = {};
+
+  // Initialize rooms with unique IDs
+  roomIds.forEach((id) => {
+    rooms[id] = {
+      id: id,
+      floor: "1",
+      paths: [],
+      effect: null,
+    };
+  });
+
+  // Linearly connect all rooms to avoid loops
+  for (let i = 0; i < roomCount - 1; i++) {
+    const currentRoomId = roomIds[i];
+    const nextRoomId = roomIds[i + 1];
+    const direction = directions[i % directions.length];
+    const oppositeDirection = directions[(i + 2) % directions.length];
+
+    // Connect current room to next room
+    rooms[currentRoomId].paths.push({
+      requiredItem: null,
+      direction: direction,
+      destination: nextRoomId,
+    });
+
+    // Connect next room back to current room
+    rooms[nextRoomId].paths.push({
+      requiredItem: null,
+      direction: oppositeDirection,
+      destination: currentRoomId,
+    });
+  }
+
+  // Assign "Start" to the first room and "Victory" to the last room
+  rooms[roomIds[0]].effect = "Start";
+  rooms[roomIds[roomCount - 1]].effect = "Victory";
+
+  return rooms;
 };
 
 // Start a new game and get the token
 app.post("/Game/start", (req, res) => {
   const token = generateToken();
-  const initialRoomId = "572c5e10-564a-43e6-a489-e12dfe94d57c";
+  const initialRooms = generateInitialRooms(); // This returns room dictionary including IDs.
+  const roomIds = Object.keys(initialRooms); // Correctly fetching room IDs from the generated rooms
+  const startRoomId = roomIds[0]; // Start at the first room in the list
   games.set(token, {
-    currentRoom: initialRoomId,
+    currentRoom: startRoomId,
     rooms: initialRooms,
   });
-  return res.status(200).json({ token: token, startRoom: initialRoomId });
+  res.status(200).json({ token: token, startRoom: startRoomId });
 });
 
 // Get current room info
 app.get("/Room/current", (req, res) => {
   const token = req.headers.authorization.split(" ")[1];
-  console.log("token", token);
   const game = games.get(token);
-  console.log("games", games);
+
   if (!token || !game) {
     return res
       .status(401)
@@ -99,13 +89,12 @@ app.get("/Room/current", (req, res) => {
   }
 
   const currentRoom = game.rooms[game.currentRoom];
-  return res.status(200).json(currentRoom);
+  res.status(200).json(currentRoom);
 });
 
 // Move to a new room
 app.put("/Player/move", (req, res) => {
   const { direction } = req.body;
-  console.log("direction", direction);
   const token = req.headers.authorization.split(" ")[1];
   const game = games.get(token);
 
