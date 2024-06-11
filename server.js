@@ -1,9 +1,11 @@
 const express = require("express");
 const crypto = require("crypto");
+const cors = require("cors");
 const app = express();
 const PORT = process.env.PORT || 3003;
 
 app.use(express.json());
+app.use(cors());
 
 // Maps to store game states for multiple sessions
 let games = new Map();
